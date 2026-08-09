@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>GarantiPro — Prototype PWA</title>
+<meta name="description" content="Prototype interactif GarantiPro : arrivage, caisse, garantie, recherche et abonnement pour commerçants." />
+
+<!-- Tailwind CSS (CDN) -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Polices -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<!-- React + ReactDOM -->
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+
+<!-- Babel Standalone (transpilation JSX dans le navigateur) -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- Icônes Lucide -->
+<script src="https://unpkg.com/lucide@latest"></script>
+
+<style>
+  html, body { height: 100%; margin: 0; background: #e2e8f0; }
+  #root { min-height: 100%; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+// ============================================================
+// GarantiPro — Prototype PWA (version HTML autonome)
+// React + Babel Standalone (transpilation JSX en direct dans le navigateur)
+// Tailwind via CDN Play + icônes Lucide via CDN
+// ============================================================
+const { useState, useEffect, useRef, useLayoutEffect } = React;
+
+// ---------- Adaptateur icônes Lucide (CDN) ----------
+// Remplace les imports "lucide-react" : chaque icône devient un composant
+// <i data-lucide="..."> hydraté en SVG par window.lucide.createIcons().
+function makeIcon(kebabName) {
+  return function LucideIcon({ size = 18, className = "", strokeWidth }) {
+    return <i data-lucide={kebabName} className={className} width={size} height={size} stroke-width={strokeWidth}></i>;
+  };
+}
+const Home = makeIcon("home");
+const Package = makeIcon("package");
+const ShoppingCart = makeIcon("shopping-cart");
+const Search = makeIcon("search");
+const Settings = makeIcon("settings");
+const ScanLine = makeIcon("scan-line");
+const ShieldCheck = makeIcon("shield-check");
+const Bell = makeIcon("bell");
+const Sun = makeIcon("sun");
+const Moon = makeIcon("moon");
+const Plus = makeIcon("plus");
+const Check = makeIcon("check");
+const X = makeIcon("x");
+const Phone = makeIcon("phone");
+const Mail = makeIcon("mail");
+const Printer = makeIcon("printer");
+const Smartphone = makeIcon("smartphone");
+const TrendingUp = makeIcon("trending-up");
+const Clock = makeIcon("clock");
+const ChevronRight = makeIcon("chevron-right");
+const ChevronLeft = makeIcon("chevron-left");
+const MessageCircle = makeIcon("message-circle");
+const RefreshCw = makeIcon("refresh-cw");
+const QrCode = makeIcon("qr-code");
+const Camera = makeIcon("camera");
+const User = makeIcon("user");
+const Banknote = makeIcon("banknote");
+const CreditCard = makeIcon("credit-card");
+const Store = makeIcon("store");
+const ChevronDown = makeIcon("chevron-down");
+const PackageCheck = makeIcon("package-check");
+const Zap = makeIcon("zap");
+const Lock = makeIcon("lock");
+const LogOut = makeIcon("log-out");
+const Sparkles = makeIcon("sparkles");
+const Download = makeIcon("download");
+
+
+// ---------- Données mockées ----------
+const PRODUCTS = [
+  { id: "p1", brand: "Apple", model: "iPhone 13 128Go Noir", category: "Smartphone", price: 549, warrantyDefault: 12 },
+  { id: "p2", brand: "Samsung", model: "Galaxy A54 128Go", category: "Smartphone", price: 339, warrantyDefault: 12 },
+  { id: "p3", brand: "Apple", model: "AirPods Pro 2", category: "Accessoire", price: 229, warrantyDefault: 6 },
+  { id: "p4", brand: "Xiaomi", model: "Redmi Note 13", category: "Smartphone", price: 199, warrantyDefault: 6 },
+];
+
+const INITIAL_SALES = [
+  { id: "V-00231", product: "iPhone 13 128Go Noir", imei: "356938 00 4521", client: "Ahmed Benali", phone: "06 12 34 56 78", date: "04/08/2026", daysLeft: 247 },
+  { id: "V-00198", product: "Galaxy A54 128Go", imei: "351022 00 8875", client: "Fatou Diallo", phone: "07 98 76 54 32", date: "29/01/2026", daysLeft: 6 },
+  { id: "V-00104", product: "Redmi Note 13", imei: "358744 00 1190", client: "Karim Zidane", phone: "06 55 44 33 22", date: "12/07/2025", daysLeft: -23 },
+  { id: "V-00219", product: "AirPods Pro 2", imei: "S/N AP2-778312", client: "Lucie Martin", phone: "06 21 09 88 77", date: "18/05/2026", daysLeft: 89 },
+  { id: "V-00227", product: "iPhone 13 128Go Noir", imei: "356938 00 4499", client: "Yassine Fall", phone: "07 11 22 33 44", date: "01/08/2026", daysLeft: 3 },
+];
+
+function warrantyStatus(daysLeft) {
+  if (daysLeft < 0) return "expired";
+  if (daysLeft <= 7) return "warning";
+  return "active";
+}
+
+function randomImei() {
+  let s = "35" + Math.floor(1000000000 + Math.random() * 8999999999).toString();
+  return s.slice(0, 6) + " " + s.slice(6, 8) + " " + s.slice(8, 12);
+}
+
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 1046;
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.13);
+  } catch (e) {}
+}
+
+function vibrate() {
+  try { if (navigator.vibrate) navigator.vibrate(18); } catch (e) {}
+}
+
+function cx(...arr) { return arr.filter(Boolean).join(" "); }
+
+// ---------- Devises ----------
+// Les montants métier (prix produits, CA...) sont stockés en EUR dans les mocks
+// et convertis à l'affichage selon la devise choisie dans les Réglages.
+const CURRENCIES = {
+  XAF: { code: "XAF", label: "Franc CFA (BEAC)", symbol: "FCFA", position: "after", decimals: 0, rate: 655.96 },
+  EUR: { code: "EUR", label: "Euro", symbol: "€", position: "after", decimals: 2, rate: 1 },
+  USD: { code: "USD", label: "Dollar US", symbol: "$", position: "before", decimals: 2, rate: 1.09 },
+  MAD: { code: "MAD", label: "Dirham marocain", symbol: "DH", position: "after", decimals: 2, rate: 10.85 },
+  GBP: { code: "GBP", label: "Livre sterling", symbol: "£", position: "before", decimals: 2, rate: 0.86 },
+};
+
+function formatMoney(amountEUR, currency) {
+  const value = amountEUR * currency.rate;
+  const formatted = value.toLocaleString("fr-FR", {
+    minimumFractionDigits: currency.decimals,
+    maximumFractionDigits: currency.decimals,
+  });
+  return currency.position === "before" ? `${currency.symbol} ${formatted}` : `${formatted} ${currency.symbol}`;
+}
+
+// ---------- Forfaits d'abonnement ----------
+// Prix de référence stockés en EUR, convertis à l'affichage via formatMoney().
+const PLANS = [
+  {
+    id: "starter",
+    name: "Starter",
+    priceEUR: 15,
+    limit: "1 boutique · jusqu'à 100 ventes/mois",
+    features: ["Scan IMEI illimité", "Reçus PDF + QR code", "Recherche multicritère", "1 utilisateur"],
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    priceEUR: 35,
+    limit: "3 boutiques · ventes illimitées",
+    features: ["Tout Starter", "Automatisations WhatsApp & SMS", "Tableau de bord & analytics", "5 utilisateurs inclus"],
+    recommended: true,
+  },
+  {
+    id: "business",
+    name: "Business",
+    priceEUR: 79,
+    limit: "Boutiques illimitées",
+    features: ["Tout Pro", "Utilisateurs illimités", "Export comptable", "Support prioritaire"],
+  },
+];
+
+// ---------- Thèmes ----------
+const TH = {
+  light: {
+    canvas: "bg-slate-200",
+    app: "bg-slate-50",
+    surface: "bg-white",
+    surfaceAlt: "bg-slate-50",
+    border: "border-slate-200",
+    text: "text-slate-900",
+    sub: "text-slate-500",
+    mute: "text-slate-400",
+    glass: "bg-white/75 backdrop-blur-xl",
+    nav: "bg-white/90 backdrop-blur-xl",
+    input: "bg-slate-100 text-slate-900 placeholder-slate-400",
+    chipOff: "bg-slate-100 text-slate-500 border border-slate-200",
+    ring: "ring-slate-200",
+  },
+  dark: {
+    canvas: "bg-black",
+    app: "bg-slate-950",
+    surface: "bg-slate-900",
+    surfaceAlt: "bg-slate-900/60",
+    border: "border-slate-800",
+    text: "text-slate-50",
+    sub: "text-slate-400",
+    mute: "text-slate-500",
+    glass: "bg-slate-900/70 backdrop-blur-xl",
+    nav: "bg-slate-950/85 backdrop-blur-xl",
+    input: "bg-slate-800 text-slate-50 placeholder-slate-500",
+    chipOff: "bg-slate-800 text-slate-400 border border-slate-700",
+    ring: "ring-slate-800",
+  },
+};
+
+const STATUS_STYLE = {
+  light: {
+    active: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    warning: "bg-amber-50 text-amber-700 border-amber-200",
+    expired: "bg-rose-50 text-rose-700 border-rose-200",
+  },
+  dark: {
+    active: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    warning: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    expired: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+  },
+};
+
+// ---------- App ----------
+function GarantiProApp() {
+  const [theme, setTheme] = useState("light");
+  const [tab, setTab] = useState("dashboard");
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanContext, setScanContext] = useState("stock");
+  const [stockItems, setStockItems] = useState([]);
+  const [sales, setSales] = useState(INITIAL_SALES);
+  const [toast, setToast] = useState(null);
+  const [currencyCode, setCurrencyCode] = useState("XAF");
+
+  // Hydrate les icônes Lucide (CDN) après chaque rendu
+  useLayoutEffect(() => { if (window.lucide) window.lucide.createIcons(); });
+
+  // Authentification & abonnement
+  const [authStep, setAuthStep] = useState("login"); // 'login' | 'signup' | 'plan' | 'app'
+  const [account, setAccount] = useState(null); // { storeName, ownerName, email, phone }
+  const [subscription, setSubscription] = useState(null); // { planId, status: 'trial'|'active', trialDaysLeft }
+  const [planPickerOpen, setPlanPickerOpen] = useState(false);
+
+  const t = TH[theme];
+  const cur = CURRENCIES[currencyCode];
+
+  function handleSignup(data) {
+    setAccount(data);
+    setAuthStep("plan");
+  }
+
+  function handleLogin(data) {
+    setAccount({ storeName: "Mobile Store Plus", ownerName: "Vendeur", email: data.email, phone: "" });
+    setSubscription({ planId: "pro", status: "active", trialDaysLeft: 0 });
+    setAuthStep("app");
+  }
+
+  function handlePlanChosen(planId) {
+    setSubscription({ planId, status: "trial", trialDaysLeft: 14 });
+    setAuthStep("app");
+    setPlanPickerOpen(false);
+    showToast("Abonnement activé · essai gratuit 14 jours");
+  }
+
+  function handleChangePlan(planId) {
+    setSubscription((prev) => ({ ...prev, planId }));
+    setPlanPickerOpen(false);
+    showToast("Abonnement mis à jour");
+  }
+
+  function handleLogout() {
+    setAuthStep("login");
+    setAccount(null);
+    setSubscription(null);
+    setTab("dashboard");
+  }
+
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2200);
+  }
+
+  function openScan(ctx) {
+    setScanContext(ctx);
+    setScanOpen(true);
+  }
+
+  function handleDetect() {
+    beep();
+    vibrate();
+    if (scanContext === "stock") {
+      setStockItems((prev) => [{ imei: randomImei(), condition: "Neuf" }, ...prev]);
+    } else {
+      setScanOpen(false);
+      setTab("caisse-sell");
+    }
+  }
+
+  return (
+    <div className={cx("min-h-screen w-full flex items-center justify-center p-4", t.canvas)} style={{ fontFamily: "Inter, system-ui, sans-serif" }}>
+      <style>{`
+        @keyframes pulseGlow { 0%,100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.45); } 50% { box-shadow: 0 0 0 14px rgba(99,102,241,0); } }
+        @keyframes scanLine { 0% { top: 6%; } 50% { top: 92%; } 100% { top: 6%; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        .anim-slideup { animation: slideUp 0.35s ease both; }
+        .anim-fadein { animation: fadeIn 0.25s ease both; }
+        .anim-popin { animation: popIn 0.3s cubic-bezier(.34,1.56,.64,1) both; }
+        .mono { font-family: 'JetBrains Mono', 'Roboto Mono', monospace; }
+      `}</style>
+
+      {/* Cadre "téléphone" */}
+      <div
+        className={cx("relative overflow-hidden shadow-2xl", t.app)}
+        style={{ width: 390, maxWidth: "100%", height: 820, maxHeight: "92vh", borderRadius: "2.75rem", border: theme === "dark" ? "8px solid #020617" : "8px solid #0f172a" }}
+      >
+        {/* Encoche */}
+        <div className="absolute top-0 left-1/2 z-30 h-6 w-32 -translate-x-1/2 rounded-b-2xl bg-black" />
+
+        <div className="flex h-full flex-col">
+          {authStep === "login" || authStep === "signup" ? (
+            <AuthScreen t={t} theme={theme} setTheme={setTheme} mode={authStep} setMode={setAuthStep} onLogin={handleLogin} onSignup={handleSignup} />
+          ) : authStep === "plan" ? (
+            <PlanSelectionScreen t={t} theme={theme} cur={cur} currentPlanId="pro" onSelect={handlePlanChosen} intro />
+          ) : (
+            <>
+              <TopBar t={t} theme={theme} tab={tab} setTab={setTab} setTheme={setTheme} account={account} />
+
+              <div className="flex-1 overflow-y-auto px-4 pb-28 pt-3">
+                {tab === "dashboard" && <Dashboard t={t} theme={theme} sales={sales} setTab={setTab} cur={cur} subscription={subscription} />}
+                {tab === "stock" && <StockScreen t={t} theme={theme} items={stockItems} openScan={openScan} cur={cur} />}
+                {(tab === "caisse" || tab === "caisse-sell") && (
+                  <CaisseScreen t={t} theme={theme} openScan={openScan} showToast={showToast} tab={tab} setTab={setTab} setSales={setSales} sales={sales} cur={cur} />
+                )}
+                {tab === "recherche" && <RechercheScreen t={t} theme={theme} sales={sales} />}
+                {tab === "settings" && (
+                  <SettingsScreen
+                    t={t} theme={theme} setTheme={setTheme}
+                    currencyCode={currencyCode} setCurrencyCode={setCurrencyCode}
+                    account={account} subscription={subscription} cur={cur}
+                    onChangePlan={() => setPlanPickerOpen(true)}
+                    onLogout={handleLogout}
+                  />
+                )}
+              </div>
+
+              <BottomNav t={t} theme={theme} tab={tab} setTab={setTab} openScan={openScan} />
+            </>
+          )}
+        </div>
+
+        {scanOpen && <ScanOverlay t={t} theme={theme} context={scanContext} count={stockItems.length} onDetect={handleDetect} onClose={() => setScanOpen(false)} />}
+
+        {planPickerOpen && (
+          <div className="absolute inset-0 z-40 flex flex-col anim-fadein" style={{ backgroundColor: theme === "dark" ? "#020617" : "#f8fafc" }}>
+            <PlanSelectionScreen
+              t={t} theme={theme} cur={cur}
+              currentPlanId={subscription ? subscription.planId : "pro"}
+              onSelect={handleChangePlan}
+              onBack={() => setPlanPickerOpen(false)}
+            />
+          </div>
+        )}
+
+        {toast && (
+          <div className="absolute bottom-28 left-1/2 z-50 -translate-x-1/2 anim-popin">
+            <div className="flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-xl">
+              <Check size={16} className="text-emerald-400" />
+              {toast}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- TopBar ----------
+function TopBar({ t, theme, tab, setTab, setTheme, account }) {
+  const titles = {
+    dashboard: "Tableau de bord",
+    stock: "Stock & Arrivage",
+    caisse: "Caisse",
+    "caisse-sell": "Nouvelle vente",
+    recherche: "Recherche",
+    settings: "Réglages",
+  };
+  return (
+    <div className={cx("z-20 flex items-center justify-between px-4 pb-3 pt-9", t.surface, "border-b", t.border)}>
+      {tab === "settings" || tab === "caisse-sell" ? (
+        <button
+          onClick={() => setTab(tab === "settings" ? "dashboard" : "caisse")}
+          className={cx("flex h-9 w-9 items-center justify-center rounded-full", t.surfaceAlt)}
+        >
+          <ChevronLeft size={18} className={t.text} />
+        </button>
+      ) : (
+        <div className="flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-cyan-500">
+            <Store size={17} className="text-white" />
+          </div>
+          <div>
+            <p className={cx("text-sm font-semibold leading-tight", t.text)}>{(account && account.storeName) || "Ma boutique"}</p>
+            <p className={cx("text-xs leading-tight", t.sub)}>{titles[tab]}</p>
+          </div>
+        </div>
+      )}
+
+      {tab !== "settings" && tab !== "caisse-sell" && (
+        <div className="flex items-center gap-2">
+          <button onClick={() => setTheme(theme === "light" ? "dark" : "light")} className={cx("flex h-9 w-9 items-center justify-center rounded-full", t.surfaceAlt)}>
+            {theme === "light" ? <Moon size={16} className={t.text} /> : <Sun size={16} className={t.text} />}
+          </button>
+          <button className={cx("relative flex h-9 w-9 items-center justify-center rounded-full", t.surfaceAlt)}>
+            <Bell size={16} className={t.text} />
+            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500" />
+          </button>
+          <button onClick={() => setTab("settings")} className={cx("flex h-9 w-9 items-center justify-center rounded-full", t.surfaceAlt)}>
+            <Settings size={16} className={t.text} />
+          </button>
+        </div>
+      )}
+      {tab === "settings" && <p className={cx("text-sm font-semibold", t.text)}>Réglages</p>}
+      {tab === "caisse-sell" && <p className={cx("text-sm font-semibold", t.text)}>Étape 2/2</p>}
+      {(tab === "settings" || tab === "caisse-sell") && <div className="w-9" />}
+    </div>
+  );
+}
+
+// ---------- Bottom Nav ----------
+function BottomNav({ t, theme, tab, setTab, openScan }) {
+  const items = [
+    { id: "dashboard", icon: Home, label: "Accueil" },
+    { id: "stock", icon: Package, label: "Stock" },
+    { id: "__fab__", icon: ScanLine, label: "" },
+    { id: "caisse", icon: ShoppingCart, label: "Caisse" },
+    { id: "recherche", icon: Search, label: "Recherche" },
+  ];
+  return (
+    <div className={cx("absolute bottom-0 left-0 right-0 z-20 border-t", t.nav, t.border)} style={{ paddingBottom: 18 }}>
+      <div className="relative flex items-end justify-between px-5 pt-2.5">
+        {items.map((it) => {
+          if (it.id === "__fab__") {
+            const active = tab === "stock" ? "stock" : "caisse";
+            return (
+              <button
+                key="fab"
+                onClick={() => openScan(active)}
+                className="relative -mt-8 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-cyan-500 shadow-lg shadow-indigo-500/30"
+                style={{ animation: "pulseGlow 2.4s ease-in-out infinite" }}
+              >
+                <ScanLine size={24} className="text-white" />
+              </button>
+            );
+          }
+          const Icon = it.icon;
+          const active = tab === it.id || (it.id === "caisse" && tab === "caisse-sell");
+          return (
+            <button key={it.id} onClick={() => setTab(it.id)} className="flex flex-col items-center gap-1 px-2 py-1">
+              <Icon size={20} className={active ? "text-indigo-500" : t.mute} strokeWidth={active ? 2.4 : 2} />
+              <span className={cx("text-[10px] font-medium", active ? "text-indigo-500" : t.mute)}>{it.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Authentification ----------
+function AuthScreen({ t, theme, setTheme, mode, setMode, onLogin, onSignup }) {
+  const [storeName, setStoreName] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  function submit() {
+    if (mode === "signup") {
+      onSignup({ storeName: storeName || "Ma boutique", ownerName: ownerName || "Vendeur", phone, email });
+    } else {
+      onLogin({ email });
+    }
+  }
+
+  return (
+    <div className="flex h-full flex-col overflow-y-auto px-6 pb-10 pt-14">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-cyan-500">
+          <ShieldCheck size={20} className="text-white" />
+        </div>
+        <button onClick={() => setTheme(theme === "light" ? "dark" : "light")} className={cx("flex h-9 w-9 items-center justify-center rounded-full", t.surfaceAlt)}>
+          {theme === "light" ? <Moon size={16} className={t.text} /> : <Sun size={16} className={t.text} />}
+        </button>
+      </div>
+
+      <h1 className={cx("mt-5 text-2xl font-bold", t.text)}>{mode === "signup" ? "Créer votre compte" : "Bon retour !"}</h1>
+      <p className={cx("mt-1 text-sm", t.sub)}>{mode === "signup" ? "14 jours d'essai gratuit, sans carte bancaire." : "Connectez-vous pour retrouver votre boutique."}</p>
+
+      <div className={cx("mt-5 flex rounded-2xl p-1", t.surfaceAlt)}>
+        <button onClick={() => setMode("login")} className={cx("flex-1 rounded-xl py-2 text-sm font-semibold", mode === "login" ? cx(t.surface, t.text, "shadow") : t.sub)}>
+          Connexion
+        </button>
+        <button onClick={() => setMode("signup")} className={cx("flex-1 rounded-xl py-2 text-sm font-semibold", mode === "signup" ? cx(t.surface, t.text, "shadow") : t.sub)}>
+          Créer un compte
+        </button>
+      </div>
+
+      <div className="mt-5 space-y-2.5">
+        {mode === "signup" && (
+          <>
+            <TextField t={t} label="Nom de la boutique" value={storeName} onChange={setStoreName} placeholder="Mobile Store Plus" icon={Store} />
+            <TextField t={t} label="Nom du responsable" value={ownerName} onChange={setOwnerName} placeholder="Jean Mabiala" icon={User} />
+            <TextField t={t} label="Téléphone" value={phone} onChange={setPhone} placeholder="06 12 34 56 78" icon={Phone} />
+          </>
+        )}
+        <TextField t={t} label="Adresse email" value={email} onChange={setEmail} placeholder="vous@boutique.com" icon={Mail} />
+        <TextField t={t} label="Mot de passe" value={password} onChange={setPassword} placeholder="••••••••" icon={Lock} />
+      </div>
+
+      {mode === "login" && (
+        <button className="mt-2 self-end text-xs font-medium text-indigo-500">Mot de passe oublié ?</button>
+      )}
+
+      <button
+        onClick={submit}
+        className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-cyan-500 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20"
+      >
+        {mode === "signup" ? "Créer mon compte" : "Se connecter"}
+      </button>
+
+      <p className={cx("mt-4 text-center text-xs", t.sub)}>
+        {mode === "signup" ? "Déjà un compte ? " : "Pas encore de compte ? "}
+        <button onClick={() => setMode(mode === "signup" ? "login" : "signup")} className="font-semibold text-indigo-500">
+          {mode === "signup" ? "Se connecter" : "Créer un compte"}
+        </button>
+      </p>
+    </div>
+  );
+}
+
+// ---------- Sélection d'abonnement ----------
+function PlanSelectionScreen({ t, theme, cur, currentPlanId, onSelect, onBack, intro }) {
+  const [selected, setSelected] = useState(currentPlanId || "pro");
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-3 px-5 pb-3 pt-12">
+        {onBack && (
+          <button onClick={onBack} className={cx("flex h-9 w-9 items-center justify-center rounded-full", t.surfaceAlt)}>
+            <ChevronLeft size={18} className={t.text} />
+          </button>
+        )}
+        <div>
+          <p className={cx("text-lg font-bold", t.text)}>{intro ? "Choisissez votre forfait" : "Changer d'abonnement"}</p>
+          {intro && <p className={cx("text-xs", t.sub)}>Essai gratuit de 14 jours sur tous les forfaits</p>}
+        </div>
+      </div>
+
+      <div className="flex-1 space-y-3 overflow-y-auto px-5 pb-4">
+        {PLANS.map((p) => {
+          const active = selected === p.id;
+          return (
+            <button
+              key={p.id}
+              onClick={() => setSelected(p.id)}
+              className={cx(
+                "w-full rounded-2xl p-4 text-left transition-all",
+                active ? "bg-gradient-to-br from-indigo-600 to-cyan-500 text-white shadow-lg shadow-indigo-500/25" : cx(t.surface, "ring-1", t.ring)
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <p className={cx("text-sm font-bold", active ? "text-white" : t.text)}>{p.name}</p>
+                  {p.recommended && (
+                    <span className={cx("rounded-full px-2 py-0.5 text-[10px] font-semibold", active ? "bg-white/20 text-white" : "bg-indigo-500/10 text-indigo-500")}>
+                      Recommandé
+                    </span>
+                  )}
+                </div>
+                <div className={cx("flex h-5 w-5 items-center justify-center rounded-full border-2", active ? "border-white bg-white" : t.border)}>
+                  {active && <Check size={12} className="text-indigo-600" />}
+                </div>
+              </div>
+              <p className={cx("mono mt-2 text-2xl font-bold", active ? "text-white" : t.text)}>
+                {formatMoney(p.priceEUR, cur)}
+                <span className={cx("text-xs font-medium", active ? "text-indigo-100" : t.sub)}> /mois</span>
+              </p>
+              <p className={cx("mt-1 text-xs", active ? "text-indigo-50" : t.sub)}>{p.limit}</p>
+              <div className="mt-3 space-y-1.5">
+                {p.features.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Check size={13} className={active ? "text-white" : "text-emerald-500"} />
+                    <span className={cx("text-xs", active ? "text-indigo-50" : t.sub)}>{f}</span>
+                  </div>
+                ))}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="px-5 pb-9 pt-2">
+        <button
+          onClick={() => onSelect(selected)}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 py-3.5 text-sm font-semibold text-white"
+        >
+          {intro ? `Démarrer l'essai gratuit — ${PLANS.find((p) => p.id === selected).name}` : "Confirmer le changement"}
+        </button>
+        {intro && <p className={cx("mt-2.5 text-center text-[11px]", t.mute)}>Aucun prélèvement pendant 14 jours. Annulable à tout moment.</p>}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Scan Overlay ----------
+function ScanOverlay({ t, theme, context, count, onDetect, onClose }) {
+  return (
+    <div className="absolute inset-0 z-40 flex flex-col bg-black/92 anim-fadein">
+      <div className="flex items-center justify-between px-5 pt-12">
+        <div>
+          <p className="text-sm font-semibold text-white">{context === "stock" ? "Scan arrivage" : "Scan vente"}</p>
+          <p className="text-xs text-slate-400">{context === "stock" ? `${count} IMEI enregistrés` : "Scannez l'IMEI du produit à vendre"}</p>
+        </div>
+        <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10">
+          <X size={18} className="text-white" />
+        </button>
+      </div>
+
+      <div className="flex flex-1 items-center justify-center px-10">
+        <div className="relative" style={{ width: 240, height: 240 }}>
+          <div className="absolute inset-0 rounded-2xl border border-cyan-400/20" />
+          {["top-0 left-0 border-t-2 border-l-2 rounded-tl-2xl", "top-0 right-0 border-t-2 border-r-2 rounded-tr-2xl", "bottom-0 left-0 border-b-2 border-l-2 rounded-bl-2xl", "bottom-0 right-0 border-b-2 border-r-2 rounded-br-2xl"].map((c, i) => (
+            <div key={i} className={cx("absolute h-9 w-9 border-cyan-400", c)} />
+          ))}
+          <div className="absolute left-2 right-2 h-0.5 bg-cyan-400 shadow-lg shadow-cyan-400/60" style={{ animation: "scanLine 1.8s ease-in-out infinite" }} />
+        </div>
+      </div>
+
+      <div className="px-6 pb-10">
+        <button onClick={onDetect} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-cyan-500 py-4 text-sm font-semibold text-white shadow-lg">
+          <Zap size={16} /> Simuler la détection d'un IMEI
+        </button>
+        <p className="mt-3 text-center text-xs text-slate-500">Bip + vibration à chaque détection réussie</p>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Dashboard ----------
+function Dashboard({ t, theme, sales, setTab, cur, subscription }) {
+  const expiringSoon = sales.filter((s) => warrantyStatus(s.daysLeft) === "warning");
+  const st = STATUS_STYLE[theme];
+  return (
+    <div className="anim-fadein space-y-3">
+      {subscription && subscription.status === "trial" && (
+        <button onClick={() => setTab("settings")} className="flex w-full items-center justify-between rounded-2xl bg-gradient-to-r from-amber-400 to-orange-400 px-4 py-3 text-left anim-slideup">
+          <div className="flex items-center gap-2.5">
+            <Sparkles size={16} className="text-white" />
+            <div>
+              <p className="text-xs font-semibold text-white">Essai gratuit · {subscription.trialDaysLeft} jours restants</p>
+              <p className="text-[11px] text-amber-50">Choisissez votre forfait pour continuer sans interruption</p>
+            </div>
+          </div>
+          <ChevronRight size={15} className="text-white" />
+        </button>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2 rounded-2xl bg-gradient-to-br from-indigo-600 to-cyan-500 p-4 text-white anim-slideup">
+          <p className="text-xs font-medium text-indigo-100">Chiffre d'affaires — aujourd'hui</p>
+          <p className="mono mt-1 text-3xl font-bold">{formatMoney(888, cur)}</p>
+          <div className="mt-2 flex items-center gap-1 text-xs text-indigo-100">
+            <TrendingUp size={13} /> +12% vs hier · 3 ventes
+          </div>
+        </div>
+
+        <div className={cx("rounded-2xl p-3.5 anim-slideup", t.surface)}>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
+            <Clock size={15} className="text-amber-500" />
+          </div>
+          <p className={cx("mono mt-2 text-xl font-bold", t.text)}>{expiringSoon.length}</p>
+          <p className={cx("text-xs", t.sub)}>Garanties J-7</p>
+        </div>
+
+        <div className={cx("rounded-2xl p-3.5 anim-slideup", t.surface)}>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+            <PackageCheck size={15} className="text-emerald-500" />
+          </div>
+          <p className={cx("mono mt-2 text-xl font-bold", t.text)}>46</p>
+          <p className={cx("text-xs", t.sub)}>Unités en stock</p>
+        </div>
+
+        <div className={cx("col-span-2 rounded-2xl p-4 anim-slideup", t.surface)}>
+          <div className="mb-2 flex items-center justify-between">
+            <p className={cx("text-xs font-semibold", t.sub)}>TOP PRODUIT VENDU</p>
+            <ChevronRight size={14} className={t.mute} />
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-slate-700 to-slate-900">
+              <Smartphone size={18} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <p className={cx("text-sm font-semibold", t.text)}>iPhone 13 128Go Noir</p>
+              <p className={cx("text-xs", t.sub)}>14 unités vendues ce mois</p>
+            </div>
+          </div>
+        </div>
+
+        <div className={cx("col-span-2 rounded-2xl p-4 anim-slideup", t.surface)}>
+          <div className="mb-2 flex items-center justify-between">
+            <p className={cx("text-xs font-semibold", t.sub)}>AUTOMATISATIONS ENVOYÉES</p>
+            <MessageCircle size={14} className={t.mute} />
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span className={cx("text-xs", t.sub)}>7 WhatsApp</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-indigo-500" />
+              <span className={cx("text-xs", t.sub)}>3 SMS</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className={cx("rounded-2xl p-4 anim-slideup", t.surface)}>
+        <div className="mb-3 flex items-center justify-between">
+          <p className={cx("text-sm font-semibold", t.text)}>Garanties expirant bientôt</p>
+          <button onClick={() => setTab("recherche")} className="text-xs font-medium text-indigo-500">Tout voir</button>
+        </div>
+        <div className="space-y-2.5">
+          {sales.slice(0, 3).map((s) => {
+            const status = warrantyStatus(s.daysLeft);
+            return (
+              <div key={s.id} className="flex items-center justify-between">
+                <div>
+                  <p className={cx("text-sm font-medium", t.text)}>{s.client}</p>
+                  <p className={cx("text-xs", t.sub)}>{s.product}</p>
+                </div>
+                <span className={cx("rounded-full border px-2.5 py-1 text-xs font-medium", st[status])}>
+                  {s.daysLeft < 0 ? "Expirée" : `J-${s.daysLeft}`}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Stock / Arrivage ----------
+function StockScreen({ t, theme, items, openScan, cur }) {
+  return (
+    <div className="anim-fadein space-y-4">
+      <div className={cx("rounded-2xl p-4", t.surface)}>
+        <p className={cx("mb-3 text-xs font-semibold", t.sub)}>NOUVEL ARRIVAGE — INFOS DU LOT</p>
+        <div className="space-y-2.5">
+          <SelectField t={t} label="Modèle" value="iPhone 13 128Go Noir" />
+          <div className="grid grid-cols-2 gap-2.5">
+            <TextField t={t} label="Prix achat" value={formatMoney(420, cur)} />
+            <TextField t={t} label="Prix vente" value={formatMoney(549, cur)} />
+          </div>
+          <SelectField t={t} label="Garantie par défaut" value="12 mois" />
+        </div>
+      </div>
+
+      <button onClick={() => openScan("stock")} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-cyan-500 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20">
+        <Camera size={16} /> Scanner les IMEI du lot
+      </button>
+
+      <div className={cx("rounded-2xl p-4", t.surface)}>
+        <div className="mb-3 flex items-center justify-between">
+          <p className={cx("text-sm font-semibold", t.text)}>IMEI scannés</p>
+          <span className={cx("rounded-full px-2.5 py-0.5 text-xs font-semibold", theme === "light" ? "bg-indigo-50 text-indigo-600" : "bg-indigo-500/10 text-indigo-400")}>{items.length}</span>
+        </div>
+
+        {items.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <ScanLine size={26} className={t.mute} />
+            <p className={cx("text-xs", t.sub)}>Aucun IMEI scanné pour l'instant.<br />Utilisez le scanner ci-dessus.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {items.map((it, i) => (
+              <div key={i} className={cx("flex items-center justify-between rounded-xl px-3 py-2.5 anim-slideup", t.surfaceAlt)}>
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10">
+                    <Check size={13} className="text-emerald-500" />
+                  </div>
+                  <span className={cx("mono text-sm", t.text)}>{it.imei}</span>
+                </div>
+                <span className={cx("text-xs", t.sub)}>{it.condition}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {items.length > 0 && (
+        <button className="w-full rounded-2xl bg-slate-900 py-3.5 text-sm font-semibold text-white">
+          Valider le lot ({items.length})
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------- Caisse ----------
+function CaisseScreen({ t, theme, openScan, showToast, tab, setTab, setSales, sales, cur }) {
+  const [product, setProduct] = useState(PRODUCTS[0]);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [warranty, setWarranty] = useState(12);
+  const [payment, setPayment] = useState("cb");
+  const [notifWA, setNotifWA] = useState(true);
+  const [notifSMS, setNotifSMS] = useState(true);
+
+  if (tab === "caisse") {
+    return (
+      <div className="anim-fadein space-y-4">
+        <button onClick={() => openScan("caisse")} className="flex w-full flex-col items-center gap-3 rounded-3xl border-2 border-dashed py-10 text-center" style={{ borderColor: theme === "light" ? "#c7d2fe" : "#312e81" }}>
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-cyan-500">
+            <ScanLine size={22} className="text-white" />
+          </div>
+          <div>
+            <p className={cx("text-sm font-semibold", t.text)}>Scanner l'IMEI à vendre</p>
+            <p className={cx("text-xs", t.sub)}>ou choisissez un produit manuellement ↓</p>
+          </div>
+        </button>
+
+        <div className={cx("rounded-2xl p-4", t.surface)}>
+          <p className={cx("mb-3 text-xs font-semibold", t.sub)}>SÉLECTION MANUELLE</p>
+          <div className="space-y-2">
+            {PRODUCTS.map((p) => (
+              <button key={p.id} onClick={() => { setProduct(p); setTab("caisse-sell"); }} className={cx("flex w-full items-center justify-between rounded-xl px-3 py-2.5", t.surfaceAlt)}>
+                <div className="text-left">
+                  <p className={cx("text-sm font-medium", t.text)}>{p.model}</p>
+                  <p className={cx("text-xs", t.sub)}>{p.brand} · {p.category}</p>
+                </div>
+                <span className={cx("mono text-sm font-semibold", t.text)}>{formatMoney(p.price, cur)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={cx("rounded-2xl p-4", t.surface)}>
+          <p className={cx("mb-2 text-sm font-semibold", t.text)}>Ventes du jour</p>
+          <p className={cx("text-xs", t.sub)}>3 tickets · {formatMoney(888, cur)} encaissés</p>
+        </div>
+      </div>
+    );
+  }
+
+  const total = product.price;
+
+  return (
+    <div className="anim-fadein space-y-4">
+      <div className={cx("rounded-2xl p-4", t.surface)}>
+        <p className={cx("mb-2 text-xs font-semibold", t.sub)}>PRODUIT SCANNÉ</p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-slate-700 to-slate-900">
+            <Smartphone size={18} className="text-white" />
+          </div>
+          <div className="flex-1">
+            <p className={cx("text-sm font-semibold", t.text)}>{product.model}</p>
+            <p className={cx("mono text-xs", t.sub)}>IMEI 356938 00 4521</p>
+          </div>
+          <p className={cx("mono text-sm font-bold", t.text)}>{formatMoney(product.price, cur)}</p>
+        </div>
+      </div>
+
+      <div className={cx("rounded-2xl p-4", t.surface)}>
+        <p className={cx("mb-2.5 text-xs font-semibold", t.sub)}>CLIENT</p>
+        <div className="space-y-2.5">
+          <TextField t={t} label="Nom complet *" value={name} onChange={setName} placeholder="Ahmed Benali" icon={User} />
+          <TextField t={t} label="Téléphone *" value={phone} onChange={setPhone} placeholder="06 12 34 56 78" icon={Phone} />
+          <TextField t={t} label="Email (optionnel)" value="" placeholder="client@email.com" icon={Mail} />
+        </div>
+      </div>
+
+      <div className={cx("rounded-2xl p-4", t.surface)}>
+        <p className={cx("mb-2.5 flex items-center gap-1.5 text-xs font-semibold", t.sub)}><ShieldCheck size={13} /> GARANTIE</p>
+        <div className="flex gap-2">
+          {[3, 6, 12].map((m) => (
+            <button key={m} onClick={() => setWarranty(m)} className={cx("flex-1 rounded-xl py-2.5 text-sm font-semibold", warranty === m ? "bg-gradient-to-r from-indigo-600 to-cyan-500 text-white" : t.chipOff)}>
+              {m} mois
+            </button>
+          ))}
+        </div>
+        <div className={cx("mt-3 flex items-center justify-between rounded-xl px-3 py-2.5 text-xs", t.surfaceAlt, t.sub)}>
+          <span>Début : 04/08/2026</span>
+          <span>Fin : {warranty === 3 ? "04/11/2026" : warranty === 6 ? "04/02/2027" : "04/08/2027"}</span>
+        </div>
+      </div>
+
+      <div className={cx("rounded-2xl p-4", t.surface)}>
+        <p className={cx("mb-2.5 text-xs font-semibold", t.sub)}>PAIEMENT</p>
+        <div className="flex gap-2">
+          {[{ id: "cash", label: "Espèces", icon: Banknote }, { id: "cb", label: "CB", icon: CreditCard }, { id: "mobile", label: "Mobile", icon: Smartphone }].map((p) => (
+            <button key={p.id} onClick={() => setPayment(p.id)} className={cx("flex flex-1 flex-col items-center gap-1 rounded-xl py-2.5", payment === p.id ? "bg-indigo-500/10 text-indigo-500 ring-1 ring-indigo-500" : t.chipOff)}>
+              <p.icon size={15} />
+              <span className="text-xs font-medium">{p.label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <span className={cx("text-sm", t.sub)}>Total</span>
+          <span className={cx("mono text-xl font-bold", t.text)}>{formatMoney(total, cur)}</span>
+        </div>
+      </div>
+
+      <div className={cx("rounded-2xl p-4", t.surface)}>
+        <p className={cx("mb-2.5 text-xs font-semibold", t.sub)}>NOTIFICATIONS À L'ENVOI</p>
+        <ToggleRow t={t} icon={MessageCircle} label="Confirmation WhatsApp" value={notifWA} onChange={setNotifWA} />
+        <ToggleRow t={t} icon={Phone} label="Confirmation SMS" value={notifSMS} onChange={setNotifSMS} />
+      </div>
+
+      <div className={cx("rounded-2xl border p-4", t.surfaceAlt, t.border)}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className={cx("text-xs font-semibold", t.text)}>Reçu #V-00232</p>
+            <p className={cx("text-xs", t.sub)}>Ticket 80mm + PDF avec QR</p>
+          </div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white">
+            <QrCode size={22} className="text-slate-900" />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-2.5 pt-1">
+        <button className={cx("flex flex-1 items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-semibold", t.chipOff)}>
+          <Printer size={16} /> Imprimer
+        </button>
+        <button
+          onClick={() => {
+            const newId = "V-" + Date.now().toString().slice(-6);
+            setSales((prev) => [{ id: newId, product: product.model, imei: "356938 00 4521", client: name || "Client comptoir", phone: phone || "—", date: "04/08/2026", daysLeft: warranty * 30 }, ...prev]);
+            showToast("Vente validée · notifications envoyées");
+            setTab("caisse");
+          }}
+          className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-cyan-500 py-3.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20"
+        >
+          <Check size={16} /> Valider & envoyer
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Recherche ----------
+function RechercheScreen({ t, theme, sales }) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  const st = STATUS_STYLE[theme];
+
+  const filtered = sales.filter((s) => {
+    const status = warrantyStatus(s.daysLeft);
+    const matchesFilter = filter === "all" || filter === status;
+    const q = query.toLowerCase();
+    const matchesQuery = !q || [s.client, s.phone, s.imei, s.product, s.id].join(" ").toLowerCase().includes(q);
+    return matchesFilter && matchesQuery;
+  });
+
+  return (
+    <div className="anim-fadein space-y-3">
+      <div className={cx("flex items-center gap-2 rounded-2xl px-3.5 py-3", t.input)}>
+        <Search size={16} className={t.mute} />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="IMEI, nom, téléphone, n° facture..." className="flex-1 bg-transparent text-sm outline-none" />
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {[{ id: "all", label: "Tous" }, { id: "active", label: "Actives" }, { id: "warning", label: "J-7" }, { id: "expired", label: "Expirées" }].map((f) => (
+          <button key={f.id} onClick={() => setFilter(f.id)} className={cx("shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold", filter === f.id ? "bg-slate-900 text-white" : t.chipOff)}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      <p className={cx("px-1 text-xs", t.sub)}>{filtered.length} résultat{filtered.length > 1 ? "s" : ""}</p>
+
+      <div className="space-y-2.5">
+        {filtered.map((s) => {
+          const status = warrantyStatus(s.daysLeft);
+          return (
+            <div key={s.id} className={cx("rounded-2xl p-3.5 anim-slideup", t.surface)}>
+              <div className="mb-2 flex items-start justify-between">
+                <div>
+                  <p className={cx("text-sm font-semibold", t.text)}>{s.client}</p>
+                  <p className={cx("text-xs", t.sub)}>{s.phone}</p>
+                </div>
+                <span className={cx("rounded-full border px-2.5 py-1 text-xs font-medium", st[status])}>
+                  {status === "expired" ? "Expirée" : status === "warning" ? `J-${s.daysLeft}` : `J-${s.daysLeft}`}
+                </span>
+              </div>
+              <div className={cx("mb-3 flex items-center justify-between border-t pt-2.5 text-xs", t.border, t.sub)}>
+                <span>{s.product}</span>
+                <span className="mono">{s.imei}</span>
+              </div>
+              <div className="flex gap-2">
+                <button className={cx("flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold", t.chipOff)}>
+                  <QrCode size={13} /> Voir le reçu
+                </button>
+                <button className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-indigo-500/10 py-2 text-xs font-semibold text-indigo-500">
+                  <RefreshCw size={13} /> {status === "expired" ? "Relancer" : "Renvoyer"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="flex flex-col items-center gap-2 py-12 text-center">
+            <Search size={24} className={t.mute} />
+            <p className={cx("text-xs", t.sub)}>Aucun résultat pour cette recherche.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Réglages ----------
+function SettingsScreen({ t, theme, setTheme, currencyCode, setCurrencyCode, account, subscription, cur, onChangePlan, onLogout }) {
+  const plan = PLANS.find((p) => subscription && p.id === subscription.planId) || PLANS[1];
+  return (
+    <div className="anim-fadein space-y-4">
+      <div className={cx("rounded-2xl p-4", t.surface)}>
+        <div className="flex items-center gap-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-cyan-500">
+            <Store size={22} className="text-white" />
+          </div>
+          <div className="flex-1">
+            <p className={cx("text-sm font-semibold", t.text)}>{(account && account.storeName) || "Ma boutique"}</p>
+            <p className={cx("text-xs", t.sub)}>{(account && account.email) || "—"}</p>
+          </div>
+        </div>
+        <div className={cx("mt-3 flex items-center justify-between border-t pt-3 text-xs", t.border, t.sub)}>
+          <span>Responsable : {(account && account.ownerName) || "—"}</span>
+        </div>
+        <button onClick={onLogout} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-rose-500/10 py-2.5 text-xs font-semibold text-rose-500">
+          <LogOut size={14} /> Se déconnecter
+        </button>
+      </div>
+
+      <div className={cx("rounded-2xl p-4", t.surface)}>
+        <div className="mb-3 flex items-center justify-between">
+          <p className={cx("text-xs font-semibold", t.sub)}>ABONNEMENT</p>
+          {subscription && subscription.status === "trial" && (
+            <span className="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-amber-500">
+              Essai · J-{subscription.trialDaysLeft}
+            </span>
+          )}
+        </div>
+
+        <div className="rounded-xl bg-gradient-to-br from-indigo-600 to-cyan-500 p-4 text-white">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold">Forfait {plan.name}</p>
+            <Sparkles size={15} className="text-white" />
+          </div>
+          <p className="mono mt-1 text-2xl font-bold">
+            {formatMoney(plan.priceEUR, cur)} <span className="text-xs font-medium text-indigo-100">/mois</span>
+          </p>
+          <p className="mt-1 text-xs text-indigo-100">{plan.limit}</p>
+        </div>
+
+        <div className={cx("mt-3 space-y-1.5 rounded-xl p-3", t.surfaceAlt)}>
+          <div className="flex items-center justify-between text-xs">
+            <span className={t.sub}>Ventes ce mois</span>
+            <span className={cx("font-semibold", t.text)}>62 ventes</span>
+          </div>
+          <div className={cx("h-1.5 w-full overflow-hidden rounded-full", theme === "light" ? "bg-slate-200" : "bg-slate-700")}>
+            <div className="h-full rounded-full bg-gradient-to-r from-indigo-600 to-cyan-500" style={{ width: "62%" }} />
+          </div>
+        </div>
+
+        <button onClick={onChangePlan} className={cx("mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold", t.chipOff)}>
+          <RefreshCw size={13} /> Changer de forfait
+        </button>
+
+        <div className={cx("mt-4 border-t pt-3", t.border)}>
+          <p className={cx("mb-2 text-xs font-semibold", t.sub)}>MÉTHODE DE PAIEMENT</p>
+          <div className={cx("flex items-center justify-between rounded-xl px-3 py-2.5", t.surfaceAlt)}>
+            <div className="flex items-center gap-2">
+              <Smartphone size={14} className={t.mute} />
+              <span className={cx("text-sm", t.text)}>Mobile Money · •• 88 12</span>
+            </div>
+            <button className="text-xs font-semibold text-indigo-500">Gérer</button>
+          </div>
+        </div>
+
+        <div className={cx("mt-4 border-t pt-3", t.border)}>
+          <p className={cx("mb-2 text-xs font-semibold", t.sub)}>HISTORIQUE DE FACTURATION</p>
+          <div className="space-y-2">
+            {[{ date: "01/07/2026", amount: plan.priceEUR }, { date: "01/06/2026", amount: plan.priceEUR }].map((inv, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <div>
+                  <p className={cx("text-xs font-medium", t.text)}>Facture {inv.date}</p>
+                  <p className="text-[11px] text-emerald-500">Payée</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={cx("mono text-xs", t.sub)}>{formatMoney(inv.amount, cur)}</span>
+                  <Download size={13} className={t.mute} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className={cx("rounded-2xl p-4", t.surface)}>
+        <p className={cx("mb-3 text-xs font-semibold", t.sub)}>APPARENCE</p>
+        <div className="flex gap-2">
+          <button onClick={() => setTheme("light")} className={cx("flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium", theme === "light" ? "bg-indigo-500/10 text-indigo-500 ring-1 ring-indigo-500" : t.chipOff)}>
+            <Sun size={14} /> Clair
+          </button>
+          <button onClick={() => setTheme("dark")} className={cx("flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium", theme === "dark" ? "bg-indigo-500/10 text-indigo-400 ring-1 ring-indigo-400" : t.chipOff)}>
+            <Moon size={14} /> Sombre
+          </button>
+        </div>
+      </div>
+
+      <div className={cx("rounded-2xl p-4", t.surface)}>
+        <div className="mb-3 flex items-center justify-between">
+          <p className={cx("text-xs font-semibold", t.sub)}>DEVISE</p>
+          <span className={cx("mono text-xs", t.sub)}>Exemple : {formatMoney(549, cur)}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {Object.values(CURRENCIES).map((c) => (
+            <button
+              key={c.code}
+              onClick={() => setCurrencyCode(c.code)}
+              className={cx(
+                "flex items-center justify-between rounded-xl px-3 py-2.5 text-left",
+                c.code === currencyCode ? "bg-indigo-500/10 ring-1 ring-indigo-500" : t.chipOff
+              )}
+            >
+              <div>
+                <p className={cx("text-sm font-semibold", c.code === currencyCode ? "text-indigo-500" : t.text)}>{c.code}</p>
+                <p className={cx("text-[10px]", t.sub)}>{c.label}</p>
+              </div>
+              {c.code === currencyCode && <Check size={15} className="text-indigo-500" />}
+            </button>
+          ))}
+        </div>
+        <p className={cx("mt-2.5 text-[11px]", t.mute)}>Les montants (caisse, stock, tableau de bord) sont automatiquement recalculés dans la devise choisie.</p>
+      </div>
+
+      <div className={cx("rounded-2xl p-4", t.surface)}>
+        <p className={cx("mb-1 text-xs font-semibold", t.sub)}>GARANTIE PAR DÉFAUT</p>
+        <SelectField t={t} label="Durée standard" value="12 mois" />
+      </div>
+
+      <div className={cx("rounded-2xl p-4", t.surface)}>
+        <p className={cx("mb-1 text-xs font-semibold", t.sub)}>CANAUX DE NOTIFICATION</p>
+        <ToggleRow t={t} icon={MessageCircle} label="WhatsApp Business API" value={true} onChange={() => {}} />
+        <ToggleRow t={t} icon={Phone} label="SMS Gateway" value={true} onChange={() => {}} />
+        <ToggleRow t={t} icon={Mail} label="Email" value={false} onChange={() => {}} />
+      </div>
+
+      <div className={cx("rounded-2xl p-4", t.surface)}>
+        <p className={cx("mb-1 text-xs font-semibold", t.sub)}>SCÉNARIOS DE RELANCE</p>
+        <div className={cx("mt-2 space-y-2 text-xs", t.sub)}>
+          <div className="flex items-center justify-between"><span>Confirmation à l'achat</span><span className="font-medium text-emerald-500">Actif</span></div>
+          <div className="flex items-center justify-between"><span>Alerte J-7 avant expiration</span><span className="font-medium text-emerald-500">Actif</span></div>
+          <div className="flex items-center justify-between"><span>Notification jour J</span><span className="font-medium text-emerald-500">Actif</span></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Champs réutilisables ----------
+function TextField({ t, label, value, onChange, placeholder, icon: Icon }) {
+  return (
+    <label className="block">
+      <span className={cx("mb-1 block text-xs font-medium", t.sub)}>{label}</span>
+      <div className={cx("flex items-center gap-2 rounded-xl px-3 py-2.5", t.input)}>
+        {Icon && <Icon size={14} className={t.mute} />}
+        <input
+          value={value}
+          onChange={(e) => onChange && onChange(e.target.value)}
+          placeholder={placeholder}
+          className="w-full flex-1 bg-transparent text-sm outline-none"
+        />
+      </div>
+    </label>
+  );
+}
+
+function SelectField({ t, label, value }) {
+  return (
+    <label className="block">
+      <span className={cx("mb-1 block text-xs font-medium", t.sub)}>{label}</span>
+      <div className={cx("flex items-center justify-between rounded-xl px-3 py-2.5", t.input)}>
+        <span className="text-sm">{value}</span>
+        <ChevronDown size={14} className={t.mute} />
+      </div>
+    </label>
+  );
+}
+
+function ToggleRow({ t, icon: Icon, label, value, onChange }) {
+  const [on, setOn] = useState(value);
+  useEffect(() => { setOn(value); }, [value]);
+  return (
+    <div className="flex items-center justify-between py-2">
+      <div className="flex items-center gap-2">
+        <Icon size={15} className={t.mute} />
+        <span className={cx("text-sm", t.text)}>{label}</span>
+      </div>
+      <button
+        onClick={() => { setOn(!on); onChange && onChange(!on); }}
+        className={cx("relative h-6 w-11 rounded-full transition-colors", on ? "bg-gradient-to-r from-indigo-600 to-cyan-500" : "bg-slate-300")}
+      >
+        <span className={cx("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all", on ? "left-5" : "left-0.5")} />
+      </button>
+    </div>
+  );
+}
+
+
+// ---------- Montage de l'application ----------
+const rootEl = document.getElementById("root");
+const root = ReactDOM.createRoot(rootEl);
+root.render(<GarantiProApp />);
+
+</script>
+</body>
+</html>
